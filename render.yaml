@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: ghost-md
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BOTNAME
+        value: GHOST-MD
+      - key: PREFIX
+        value: .
+      - key: MODE
+        value: public
+      - key: OWNER
+        sync: false
+      - key: DEV
+        sync: false

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GHOST-MD — Pairing Terminal</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .terminal {
+      background: #0d1117;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 480px;
+      padding: 24px;
+      box-shadow: 0 0 40px rgba(0, 255, 136, 0.05);
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1f2937;
+    }
+
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot.red    { background: #ff5f57; }
+    .dot.yellow { background: #febc2e; }
+    .dot.green  { background: #28c840; }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+      color: #6b7280;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .logo h1 {
+      font-size: 32px;
+      font-weight: bold;
+      color: #00ff88;
+      text-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+      letter-spacing: 6px;
+    }
+
+    .logo p {
+      font-size: 11px;
+      color: #4b5563;
+      margin-top: 4px;
+      font-style: italic;
+    }
+
+    .status {
+      text-align: center;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+
+    .status .dot-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    .status .dot-indicator.connecting  { background: #f59e0b; animation: pulse 1s infinite; }
+    .status .dot-indicator.qr          { background: #00ff88; animation: pulse 1.5s infinite; }
+    .status .dot-indicator.connected   { background: #00ff88; }
+    .status .dot-indicator.disconnected{ background: #ef4444; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.3; }
+    }
+
+    .qr-container {
+      display: flex;
+      justify-content: center;
+      margin: 20px 0;
+    }
+
+    .qr-container img {
+      border-radius: 8px;
+      border: 2px solid #1f2937;
+      background: white;
+      padding: 8px;
+      max-width: 280px;
+      width: 100%;
+    }
+
+    .qr-container .placeholder {
+      color: #374151;
+      font-size: 13px;
+      text-align: center;
+      padding: 60px 20px;
+      border: 2px dashed #1f2937;
+      border-radius: 8px;
+      width: 280px;
+    }
+
+    .instructions {
+      text-align: center;
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.6;
+      margin-top: 12px;
+    }
+
+    .instructions strong { color: #9ca3af; }
+
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      padding-top: 12px;
+      border-top: 1px solid #1f2937;
+      font-size: 10px;
+      color: #374151;
+      letter-spacing: 1px;
+    }
+
+    .connected-msg {
+      text-align: center;
+      padding: 30px 20px;
+      color: #00ff88;
+      font-size: 18px;
+    }
+
+    .connected-msg p {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="terminal">
+    <div class="terminal-header">
+      <div class="dot red"></div>
+      <div class="dot yellow"></div>
+      <div class="dot green"></div>
+      <div class="terminal-title">ghost-terminal</div>
+    </div>
+
+    <div class="logo">
+      <h1>GHOST</h1>
+      <p>"I don't have friends, I have clients."</p>
+    </div>
+
+    <div class="status" id="status">
+      <span class="dot-indicator connecting"></span>
+      <span id="statusText">Initializing...</span>
+    </div>
+
+    <div id="content">
+      <div class="qr-container">
+        <div class="placeholder">Waiting for QR code...</div>
+      </div>
+    </div>
+
+    <div class="instructions" id="instructions">
+      <strong>1.</strong> Open WhatsApp on your phone<br>
+      <strong>2.</strong> Go to Linked Devices → Link a Device<br>
+      <strong>3.</strong> Scan the QR code above<br>
+      <strong>4.</strong> Ghost will come alive
+    </div>
+
+    <div class="footer">
+      GHOST-MD v1.0 &bull; Deployed on OnRender
+    </div>
+  </div>
+
+  <script>
+    const statusEl  = document.getElementById('status');
+    const statusTxt = document.getElementById('statusText');
+    const content   = document.getElementById('content');
+    const instruct  = document.getElementById('instructions');
+
+    let lastQR = null;
+    let pollInterval;
+
+    async function poll() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+
+        updateStatus(data.status);
+
+        if (data.status === 'qr') {
+          fetchQR();
+        }
+
+        if (data.status === 'connected') {
+          content.innerHTML = `
+            <div class="connected-msg">
+              &#9670; GHOST IS ONLINE &#9670;
+              <p>Bot is running and ready to receive commands.</p>
+            </div>`;
+          instruct.style.display = 'none';
+          stopPolling();
+        }
+
+        if (data.status === 'disconnected') {
+          content.innerHTML = `<div class="qr-container"><div class="placeholder" style="color:#ef4444;">Disconnected.<br>Restart the service.</div></div>`;
+          instruct.style.display = 'none';
+          stopPolling();
+        }
+      } catch (e) {
+        console.error('Poll error:', e);
+      }
+    }
+
+    async function fetchQR() {
+      try {
+        const res  = await fetch('/api/qr');
+        const data = await res.json();
+        if (data.qr && data.qr !== lastQR) {
+          lastQR = data.qr;
+          content.innerHTML = `<div class="qr-container"><img src="${data.qr}" alt="Scan to pair Ghost" /></div>`;
+          instruct.style.display = 'block';
+        }
+      } catch (e) {
+        // QR not ready yet
+      }
+    }
+
+    function updateStatus(status) {
+      const indicator = statusEl.querySelector('.dot-indicator');
+      indicator.className = 'dot-indicator ' + status;
+
+      const labels = {
+        connecting:   'Booting up...',
+        qr:           'QR Ready — Scan now',
+        connected:    'Connected & Running',
+        disconnected: 'Disconnected',
+      };
+      statusTxt.textContent = labels[status] || status;
+    }
+
+    function stopPolling() {
+      if (pollInterval) clearInterval(pollInterval);
+    }
+
+    // Start polling every 3 seconds
+    poll();
+    pollInterval = setInterval(poll, 3000);
+  </script>
+</body>
+</html>
