@@ -10,24 +10,45 @@ module.exports = {
   alias: ['help', 'commands'],
   execute: async ({ client, m, isOwner }) => {
     const plugins = loadPlugins();
-    const prefix = client.prefix || '.';
+    const p = client.prefix || '.';
 
-    let menu = `*╔═══════════════════╗*\n`;
-    menu +=    `*║    ${client.botname}     ║*\n`;
-    menu +=    `*╚═══════════════════╝*\n\n`;
-    menu += `*Prefix:* ${prefix}\n`;
+    let menu = `╔══════════════════════════╗\n`;
+    menu +=    `║   *${client.botname || 'GHOST-MD'}*        ║\n`;
+    menu +=    `║   v2.0 — BLACK-MD Fork  ║\n`;
+    menu +=    `╚══════════════════════════╝\n\n`;
+    menu += `*Prefix:* ${p}\n`;
     menu += `*Mode:* ${client.public ? 'Public' : 'Private'}\n\n`;
-    menu += `*── COMMANDS ──*\n\n`;
 
-    for (const p of plugins) {
-      if (p.owner && !isOwner && !m.key.fromMe) continue;
-      if (p.hidden) continue;
-      const aliases = Array.isArray(p.alias) ? p.alias : [];
-      const tag = p.owner ? ' [owner]' : '';
-      menu += `  *${prefix}${p.name}*${aliases.length ? ` (${aliases.join(', ')})` : ''} — ${p.desc || 'No description'}${tag}\n`;
+    const categories = {
+      'Core': [],
+      'Owner': [],
+      'Group': [],
+      'Media': [],
+      'Utilities': [],
+    };
+
+    for (const plugin of plugins) {
+      if (plugin.owner && !isOwner && !m.key.fromMe) continue;
+      if (plugin.hidden) continue;
+
+      const aliases = Array.isArray(plugin.alias) ? plugin.alias : [];
+      const tag = plugin.owner ? ' [owner]' : plugin.group ? ' [group]' : '';
+      const line = `  *${p}${plugin.name}*${aliases.length ? ` (${aliases.join(', ')})` : ''} — ${plugin.desc || 'No description'}${tag}`;
+
+      if (plugin.owner) categories['Owner'].push(line);
+      else if (plugin.group) categories['Group'].push(line);
+      else if (['play', 'video', 'ig', 'tiktok', 'sticker'].some(n => plugin.name === n || aliases.includes(n))) categories['Media'].push(line);
+      else if (['ping', 'menu', 'jid'].some(n => plugin.name === n || aliases.includes(n))) categories['Core'].push(line);
+      else categories['Utilities'].push(line);
     }
 
-    menu += `\n_Send "${prefix}menu" anytime to see this._`;
+    for (const [cat, cmds] of Object.entries(categories)) {
+      if (cmds.length === 0) continue;
+      menu += `*── ${cat} ──*\n`;
+      menu += cmds.join('\n') + '\n\n';
+    }
+
+    menu += `_Powered by Ghost 🖤_`;
     await m.reply(menu);
   },
 };
